@@ -3,6 +3,7 @@ import path from 'node:path'
 import YAML from 'yaml'
 
 const VAPOR_RUNTIME_ALIAS = 'vue/dist/vue.runtime-with-vapor.esm-bundler.js'
+const VUE_JSX_VAPOR_VERSION = '^3.2.14'
 
 const ignoredDirectories = new Set([
 	'.git',
@@ -137,6 +138,60 @@ export function patchMisskeyForVapor(rootDir: string) {
 		)
 	}
 	fs.writeFileSync(commonFile, common)
+}
+
+export function installVueJsxVaporPackage(content: string) {
+	const pkg = JSON.parse(content)
+	pkg.devDependencies ||= {}
+	pkg.devDependencies['vue-jsx-vapor'] = VUE_JSX_VAPOR_VERSION
+	return JSON.stringify(pkg, null, 2) + '\n'
+}
+
+export function patchVuetifyForVueJsxVapor(rootDir: string) {
+	const configFile = path.join(rootDir, 'packages/vuetify/vite.config.ts')
+	let source = fs.readFileSync(configFile, 'utf-8')
+	if (!source.includes("from 'vue-jsx-vapor/vite'")) {
+		source = source.replace(
+			"import vueJsx from '@vitejs/plugin-vue-jsx'",
+			"import vueJsxVapor from 'vue-jsx-vapor/vite'",
+		)
+	}
+	source = source.replace(
+		/vue\(\),\n\s+vueJsx\(\{ optimize: false, enableObjectSlots: false \}\),/,
+		'vueJsxVapor({ interop: true }),\n      vue(),',
+	)
+	if (!source.includes('vueJsxVapor({ interop: true })')) {
+		throw new Error(
+			`failed to patch Vuetify vue-jsx-vapor plugin in ${configFile}`,
+		)
+	}
+	fs.writeFileSync(configFile, source)
+}
+
+export function patchNaiveUiForVueJsxVapor(rootDir: string) {
+	const configFile = path.join(rootDir, 'vite.config.mts')
+	let source = fs.readFileSync(configFile, 'utf-8')
+	if (!source.includes("from 'vue-jsx-vapor/vite'")) {
+		source = source.replace(
+			"import { configDefaults, defineConfig } from 'vitest/config'",
+			`import { configDefaults, defineConfig } from 'vitest/config'\nimport vueJsxVapor from 'vue-jsx-vapor/vite'`,
+		)
+	}
+	source = source.replace(
+		/plugins:\s*\[\n\s+\.\.\.createDemoPlugin\(\),?\n\s+\],/,
+		`plugins: [
+    vueJsxVapor({
+      interop: true,
+    }),
+    ...createDemoPlugin(),
+  ],`,
+	)
+	if (!source.includes('vueJsxVapor({')) {
+		throw new Error(
+			`failed to patch Naive UI vue-jsx-vapor plugin in ${configFile}`,
+		)
+	}
+	fs.writeFileSync(configFile, source)
 }
 
 export function excludeVueFromMinimumReleaseAge(content: string) {

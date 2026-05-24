@@ -66,7 +66,8 @@ Existing ecosystem suites are retained, and Vapor-specific coverage is added:
 - SSR / Nuxt: `npmx`, `nuxt`, `elk`
 - SSG: `vuefes-2025-website`, `vuejs-docs`, `vitepress`
 - Large apps: `misskey`, `elk`
-- JSX / TSX: `vue-jsx-vapor`
+- JSX / TSX: `vue-jsx-vapor`, `vuetify-jsx-vapor`,
+  `naive-ui-jsx-vapor`
 - VDOM / Vapor interop fuzzing: `vapor-interop-fuzz`
 - Visual regression: `vapor-vrt`
 

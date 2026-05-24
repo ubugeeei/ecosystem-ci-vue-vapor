@@ -61,6 +61,17 @@ export const TESTBED_PROJECTS: TestbedProject[] = [
 		redistributesArtifacts: false,
 	},
 	{
+		suite: 'naive-ui-jsx-vapor',
+		repo: 'tusen-ai/naive-ui',
+		license: 'MIT',
+		licenseClass: 'permissive',
+		licenseUrl: 'https://github.com/tusen-ai/naive-ui/blob/main/LICENSE',
+		usage: 'Component library JSX/TSX Vapor compatibility probe',
+		policy:
+			'Clone ephemerally, patch in workspace only, do not redistribute build artifacts.',
+		redistributesArtifacts: false,
+	},
+	{
 		suite: 'npmx',
 		repo: 'npmx-dev/npmx.dev',
 		license: 'MIT',
@@ -256,6 +267,17 @@ export const TESTBED_PROJECTS: TestbedProject[] = [
 		licenseClass: 'permissive',
 		licenseUrl: 'https://github.com/vuetifyjs/vuetify/blob/master/LICENSE.md',
 		usage: 'Component framework compatibility probe',
+		policy:
+			'Clone ephemerally, patch in workspace only, do not redistribute build artifacts.',
+		redistributesArtifacts: false,
+	},
+	{
+		suite: 'vuetify-jsx-vapor',
+		repo: 'vuetifyjs/vuetify',
+		license: 'MIT',
+		licenseClass: 'permissive',
+		licenseUrl: 'https://github.com/vuetifyjs/vuetify/blob/master/LICENSE.md',
+		usage: 'Component framework JSX/TSX Vapor compatibility probe',
 		policy:
 			'Clone ephemerally, patch in workspace only, do not redistribute build artifacts.',
 		redistributesArtifacts: false,

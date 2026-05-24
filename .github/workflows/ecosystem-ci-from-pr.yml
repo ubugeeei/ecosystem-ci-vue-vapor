@@ -41,6 +41,7 @@ on:
           - language-tools
           - misskey
           # - naive-ui
+          - naive-ui-jsx-vapor
           - nuxt
           - npmx
           - pinia
@@ -58,6 +59,7 @@ on:
           - vue-i18n
           - vue-macros
           - vuetify
+          - vuetify-jsx-vapor
           - vueuse
           - vuefes-2025-website
           - vuejs-docs
@@ -114,6 +116,7 @@ jobs:
           - language-tools
           - misskey
           # - naive-ui
+          - naive-ui-jsx-vapor
           - nuxt
           - npmx
           - pinia
@@ -131,6 +134,7 @@ jobs:
           - vue-i18n
           - vue-macros
           - vuetify
+          - vuetify-jsx-vapor
           - vueuse
           - vuefes-2025-website
           - vuejs-docs
