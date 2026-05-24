@@ -68,12 +68,19 @@ Existing ecosystem suites are retained, and Vapor-specific coverage is added:
 - Large apps: `misskey`, `elk`
 - JSX / TSX: `vue-jsx-vapor`
 - VDOM / Vapor interop fuzzing: `vapor-interop-fuzz`
+- Visual regression: `vapor-vrt`
 
 The `vapor-interop-fuzz` suite is a local fixture. It compiles Vapor SFCs,
 mounts them from both VDOM and Vapor roots, randomly switches VDOM/Vapor
 components across seeded runs, exercises slots, fragments, keyed lists, events,
 Teleport, unmounting, and SSR hydration, then fails on observable mismatches or
 interop/hydration warnings.
+
+The `vapor-vrt` suite is also a local fixture. It resolves the latest stable
+Vue release from npm at runtime, renders the non-Vapor baseline, then renders
+the same page/state manifest with the tested Vapor build. It covers every page
+and state declared in the fixture manifest across desktop and mobile viewports,
+and compares screenshots with pixel-level diffs.
 
 ## Workflows
 
@@ -112,6 +119,7 @@ Run one suite:
 
 ```sh
 vp run test --branch minor vapor-interop-fuzz
+vp run test --branch minor vapor-vrt
 vp run test --branch minor npmx
 ```
 

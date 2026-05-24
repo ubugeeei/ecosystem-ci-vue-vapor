@@ -53,6 +53,7 @@ on:
           - test-utils
           - vant
           - vapor-interop-fuzz
+          - vapor-vrt
           - vite-plugin-vue
           - vitepress
           - vue-jsx-vapor

@@ -7,5 +7,7 @@ workspace
 .pnpm-debug.log
 .idea
 .cache
+.vrt-cache
+.vrt-output
 .verdaccio-cache
 built-packages

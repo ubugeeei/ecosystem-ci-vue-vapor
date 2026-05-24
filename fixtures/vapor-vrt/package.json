@@ -1,0 +1,17 @@
+{
+  "name": "@vue-ecosystem-ci/vapor-vrt",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "install:browser": "playwright install chromium",
+    "test": "node ./scripts/vapor-vrt.ts"
+  },
+  "dependencies": {
+    "@vue/compiler-sfc": "latest",
+    "pixelmatch": "^7.2.0",
+    "playwright": "^1.60.0",
+    "pngjs": "^7.0.0",
+    "vue": "latest"
+  },
+  "packageManager": "pnpm@10.30.3"
+}
