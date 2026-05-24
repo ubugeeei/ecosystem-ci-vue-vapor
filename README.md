@@ -92,8 +92,10 @@ and compares screenshots with pixel-level diffs.
 - `vue-core-minor-watch.yml` polls `vuejs/core` `minor` hourly. When it sees a
   new branch head SHA, it dispatches `ecosystem-ci.yml` against that commit.
 
-Failures create or update issues in this repository with labels:
-`ecosystem-ci`, `vapor`, and `suite:<name>`.
+Suite failures create or update issues in this repository with labels
+`ecosystem-ci`, `vapor`, and `suite:<name>`, then keep the workflow green so
+Vapor regressions can be tracked without blocking the Actions signal. Workflow
+failures are still reserved for setup, dependency, or issue-reporting problems.
 
 ## Running Locally
 

@@ -87,6 +87,7 @@ jobs:
           --repo ${{ inputs.repo || github.event.client_payload.repo || 'vuejs/core' }}
           ${{ matrix.suite }}
         id: ecosystem-ci-run
+        continue-on-error: true
         env:
           COREPACK_ENABLE_STRICT: 0
       - if: always()
@@ -97,11 +98,11 @@ jobs:
           REF: ${{ inputs.ref || github.event.client_payload.ref || 'minor' }}
           REPO: ${{ inputs.repo || github.event.client_payload.repo || 'vuejs/core' }}
           SUITE: ${{ matrix.suite }}
-          STATUS: ${{ job.status }}
+          STATUS: ${{ steps.ecosystem-ci-run.outcome }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: report failure to fork issue tracker
-        if: failure()
+        if: steps.ecosystem-ci-run.outcome == 'failure'
         uses: ./.github/actions/report-failure
         with:
           suite: ${{ matrix.suite }}

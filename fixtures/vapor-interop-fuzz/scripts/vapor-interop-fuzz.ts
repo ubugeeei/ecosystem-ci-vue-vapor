@@ -28,15 +28,27 @@ const cases = [
 	{ seed: 314159, steps: 18 },
 	{ seed: 271828, steps: 12 },
 ]
+const scriptSetupVaporStats = {
+	enabled: 0,
+	disabled: 0,
+}
 
 for (const fuzzCase of cases) {
 	await runClientInteropCase(fuzzCase, 'vdom-root')
 	await runClientInteropCase(fuzzCase, 'vapor-root')
 	await runSsrHydrationCase(fuzzCase)
 }
+assert.ok(
+	scriptSetupVaporStats.enabled > 0,
+	'fuzz did not compile any <script setup vapor> SFCs',
+)
+assert.ok(
+	scriptSetupVaporStats.disabled > 0,
+	'fuzz did not compile any plain <script setup> SFCs',
+)
 
 console.log(
-	`vapor interop fuzz passed (${cases.length} seeds, VDOM/Vapor roots, SSR hydration)`,
+	`vapor interop fuzz passed (${cases.length} seeds, VDOM/Vapor roots, SSR hydration, ${scriptSetupVaporStats.enabled} script setup vapor variants)`,
 )
 
 async function runClientInteropCase({ seed, steps }, rootMode) {
@@ -50,16 +62,15 @@ async function runClientInteropCase({ seed, steps }, rootMode) {
 	document.body.appendChild(target)
 
 	try {
-		const components = makeComponents(data, target.id)
+		const sfcVariants = makeSfcVariants(seed, rootMode)
+		const components = makeComponents(data, target.id, sfcVariants)
 		data.value.current = components.VaporCard
 
 		const Root =
 			rootMode === 'vapor-root'
-				? makeVaporRoot(data)
+				? makeVaporRoot(data, sfcVariants.root)
 				: makeVdomRoot(data, components)
-		const app =
-			rootMode === 'vapor-root' ? createVaporApp(Root) : createApp(Root)
-		app.use(vaporInteropPlugin)
+		const app = createClientAppWithInterop(Root, rootMode)
 		app.mount(host)
 
 		for (let step = 0; step < steps; step++) {
@@ -92,34 +103,31 @@ async function runSsrHydrationCase({ seed }) {
 	document.body.appendChild(host)
 
 	try {
+		const sfcVariants = makeSfcVariants(seed, 'ssr-hydration')
 		const ServerChild = compileSfc(
-			vaporCardSfc(),
+			vaporCardSfc(sfcVariants.serverChild),
 			serverData,
 			{},
 			{
-				vapor: true,
 				ssr: true,
 				name: `ServerChild${seed}`,
 			},
 		)
 		const ClientChild = compileSfc(
-			vaporCardSfc(),
+			vaporCardSfc(sfcVariants.clientChild),
 			clientData,
 			{},
 			{
-				vapor: true,
 				name: `ClientChild${seed}`,
 			},
 		)
 		const ServerRoot = makeSsrVdomRoot(serverData, ServerChild)
 		const ClientRoot = makeSsrVdomRoot(clientData, ClientChild)
 
-		const serverApp = createSSRApp(ServerRoot)
-		serverApp.use(vaporInteropPlugin)
+		const serverApp = createSsrAppWithInterop(ServerRoot)
 		host.innerHTML = await renderToString(serverApp)
 
-		const clientApp = createSSRApp(ClientRoot)
-		clientApp.use(vaporInteropPlugin)
+		const clientApp = createSsrAppWithInterop(ClientRoot)
 		clientApp.mount(host)
 		assertSsrHydrated(host, clientData.value, seed)
 
@@ -135,12 +143,11 @@ async function runSsrHydrationCase({ seed }) {
 	assertNoVueInteropWarnings(warnings.messages, 'ssr-hydration', seed)
 }
 
-function makeComponents(data, teleportTarget) {
+function makeComponents(data, teleportTarget, sfcVariants) {
 	const components = {}
 
 	components.VaporCard = markRaw(
-		compileSfc(vaporCardSfc(), data, components, {
-			vapor: true,
+		compileSfc(vaporCardSfc(sfcVariants.card), data, components, {
 			name: 'VaporCard',
 		}),
 	)
@@ -148,11 +155,11 @@ function makeComponents(data, teleportTarget) {
 	components.VaporFragment = markRaw(
 		compileSfc(
 			`
-				<script vapor>
+				${scriptSetupOpenTag(sfcVariants.fragment)}
 				defineProps({ mode: String })
 				const data = _data
 				</script>
-				<template vapor>
+				<template>
 					<strong class="vapor-fragment" :data-step="data.step">
 						{{ data.label }}
 					</strong>
@@ -162,7 +169,7 @@ function makeComponents(data, teleportTarget) {
 			`,
 			data,
 			components,
-			{ vapor: true, name: 'VaporFragment' },
+			{ name: 'VaporFragment' },
 		),
 	)
 
@@ -229,13 +236,13 @@ function makeComponents(data, teleportTarget) {
 	return components
 }
 
-function vaporCardSfc() {
+function vaporCardSfc(scriptSetupVariant) {
 	return `
-		<script vapor>
+		${scriptSetupOpenTag(scriptSetupVariant)}
 		defineProps({ mode: String })
 		const data = _data
 		</script>
-		<template vapor>
+		<template>
 			<section
 				class="case-card vapor-card"
 				:class="{ 'is-on': data.flag }"
@@ -280,12 +287,13 @@ function makeVdomRoot(data, components) {
 							data.value.current,
 							{ mode: data.value.mode },
 							{
-								default: ({ label, step }) =>
+								default: ({ label, step }) => [
 									h(
 										'span',
 										{ class: 'slot-probe' },
 										`slot-${label}-${step}-${data.value.items.length}`,
 									),
+								],
 							},
 						),
 						h(components.VDomCard, { mode: 'shadow' }),
@@ -295,13 +303,13 @@ function makeVdomRoot(data, components) {
 	})
 }
 
-function makeVaporRoot(data) {
+function makeVaporRoot(data, scriptSetupVariant) {
 	return compileSfc(
 		`
-			<script vapor>
+			${scriptSetupOpenTag(scriptSetupVariant)}
 			const data = _data
 			</script>
-			<template vapor>
+			<template>
 				<main class="root vapor-root" :data-case="data.seed" :data-step="data.step">
 					<component :is="data.current" :mode="data.mode">
 						<template #default="{ label, step }">
@@ -315,8 +323,53 @@ function makeVaporRoot(data) {
 		`,
 		data,
 		{},
-		{ vapor: true, name: 'InteropVaporRoot' },
+		{ name: 'InteropVaporRoot' },
 	)
+}
+
+function createClientAppWithInterop(Root, rootMode) {
+	const app = rootMode === 'vapor-root' ? createVaporApp(Root) : createApp(Root)
+	app.use(vaporInteropPlugin)
+	return app
+}
+
+function createSsrAppWithInterop(Root) {
+	const app = createSSRApp(Root)
+	app.use(vaporInteropPlugin)
+	return app
+}
+
+function makeSfcVariants(seed, scope) {
+	const random = mulberry32(hashSeed(seed, scope))
+	return {
+		card: makeScriptSetupVariant(random),
+		fragment: makeScriptSetupVariant(random),
+		root: makeScriptSetupVariant(random, true),
+		serverChild: makeScriptSetupVariant(random),
+		clientChild: makeScriptSetupVariant(random),
+	}
+}
+
+function makeScriptSetupVariant(random, forceVapor = false) {
+	const vapor = forceVapor || random() > 0.5
+	if (vapor) {
+		scriptSetupVaporStats.enabled++
+	} else {
+		scriptSetupVaporStats.disabled++
+	}
+	return { vapor }
+}
+
+function scriptSetupOpenTag({ vapor }) {
+	return `<script setup${vapor ? ' vapor' : ''}>`
+}
+
+function hashSeed(seed, scope) {
+	let hash = seed >>> 0
+	for (let index = 0; index < scope.length; index++) {
+		hash = Math.imul(hash ^ scope.charCodeAt(index), 16777619) >>> 0
+	}
+	return hash
 }
 
 function makeSsrVdomRoot(data, Child) {
@@ -329,12 +382,13 @@ function makeSsrVdomRoot(data, Child) {
 						Child,
 						{ mode: data.value.mode },
 						{
-							default: ({ label, step }) =>
+							default: ({ label, step }) => [
 								h(
 									'span',
 									{ class: 'slot-probe' },
 									`slot-${label}-${step}-${data.value.items.length}`,
 								),
+							],
 						},
 					),
 				])
@@ -343,10 +397,11 @@ function makeSsrVdomRoot(data, Child) {
 }
 
 function compileSfc(source, data, components, options = {}) {
-	const { vapor = true, ssr = false, name = 'AnonymousCompiled' } = options
+	const { ssr = false, name = 'AnonymousCompiled' } = options
 	const descriptor = compilerSfc.parse(source, {
 		filename: `${name}.vue`,
 	}).descriptor
+	const vapor = hasVaporScriptSetup(descriptor)
 	const script = compilerSfc.compileScript(descriptor, {
 		id: name,
 		isProd: true,
@@ -372,6 +427,13 @@ function compileSfc(source, data, components, options = {}) {
 		serverRenderer,
 		data,
 		components,
+	)
+}
+
+function hasVaporScriptSetup(descriptor) {
+	return Boolean(
+		descriptor.scriptSetup?.attrs &&
+		Object.prototype.hasOwnProperty.call(descriptor.scriptSetup.attrs, 'vapor'),
 	)
 }
 
