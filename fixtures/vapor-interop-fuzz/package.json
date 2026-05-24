@@ -1,0 +1,17 @@
+{
+  "name": "@vue-ecosystem-ci/vapor-interop-fuzz",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node ./scripts/vapor-interop-fuzz.ts"
+  },
+  "dependencies": {
+    "@vue/compiler-sfc": "latest",
+    "@vue/server-renderer": "latest",
+    "vue": "latest"
+  },
+  "devDependencies": {
+    "jsdom": "^27.3.0"
+  },
+  "packageManager": "pnpm@10.30.3"
+}

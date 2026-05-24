@@ -1,22 +1,22 @@
 {
-	"include": ["./**/*.ts"],
-	"exclude": ["**/node_modules/**/*", "./workspace/**/*"],
-	"compilerOptions": {
-		"target": "esnext",
-		"module": "NodeNext",
-		"moduleResolution": "NodeNext",
-		"allowImportingTsExtensions": true,
-		"strict": true,
-		"declaration": false,
-		"noImplicitOverride": true,
-		"noUnusedLocals": true,
-		"esModuleInterop": true,
-		"useUnknownInCatchVariables": false,
-		"allowSyntheticDefaultImports": true,
-		"lib": ["esnext"],
-		"sourceMap": true,
-		"typeRoots": ["./typings/node_modules/@types"],
-		"noEmit": true,
-		"skipLibCheck": true
-	}
+  "include": ["./**/*.ts", ".github/**/*.ts"],
+  "exclude": ["**/node_modules/**/*", "./workspace/**/*"],
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "declaration": false,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "esModuleInterop": true,
+    "useUnknownInCatchVariables": false,
+    "allowSyntheticDefaultImports": true,
+    "lib": ["esnext"],
+    "sourceMap": true,
+    "typeRoots": ["./typings/node_modules/@types"],
+    "noEmit": true,
+    "skipLibCheck": true
+  }
 }

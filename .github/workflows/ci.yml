@@ -11,32 +11,25 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    env:
+      VITE_GIT_HOOKS: "0"
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version-file: ".node-version"
-      - run: npm install --global corepack
-      - run: corepack enable
-      - run: pnpm --version
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: ".node-version"
-          cache: "pnpm"
-          cache-dependency-path: "**/pnpm-lock.yaml"
+          node-version: "24"
+          cache: true
       - name: install
-        run: pnpm install --frozen-lockfile --prefer-offline
-      - name: format
-        run: pnpm format
-      - name: lint
-        run: pnpm run lint
-      - name: typecheck
-        run: pnpm run typecheck
+        run: vp install --frozen-lockfile --prefer-offline
+      - name: check
+        run: vp check
+      - name: check testbed licenses
+        run: vp run check:testbeds
       - name: audit
-        if: (${{ success() }} || ${{ failure() }})
-        run: pnpm audit
+        if: ${{ !cancelled() }}
+        run: vp pm audit
       - name: test
-        if: (${{ success() }} || ${{ failure() }})
-        run: pnpm test:self
+        if: ${{ !cancelled() }}
+        run: vp run test:self
         env:
           COREPACK_ENABLE_STRICT: 0

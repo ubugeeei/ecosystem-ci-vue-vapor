@@ -1,5 +1,5 @@
 import { runInRepo } from '../utils.ts'
-import { RunOptions } from '../types.ts'
+import type { RunOptions } from '../types.ts'
 import YAML from 'yaml'
 
 export async function test(options: RunOptions) {

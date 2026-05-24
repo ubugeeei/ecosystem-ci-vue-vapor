@@ -5,10 +5,15 @@ env:
   # 7 GiB by default on GitHub, setting to 6 GiB
   # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
   NODE_OPTIONS: --max-old-space-size=6144
+  VITE_GIT_HOOKS: "0"
+
+permissions:
+  contents: read
+  issues: write
 
 on:
   schedule:
-    - cron: "0 5 * * 1,3,5" # monday,wednesday,friday 5AM
+    - cron: "0 5 * * *" # daily 5AM UTC
   workflow_dispatch:
     inputs:
       refType:
@@ -25,7 +30,7 @@ on:
         description: "vue ref to use"
         required: true
         type: string
-        default: "main"
+        default: "minor"
       repo:
         description: "vue repository to use"
         required: true
@@ -35,14 +40,17 @@ on:
     types: [ecosystem-ci]
 jobs:
   test-ecosystem:
-    timeout-minutes: 60
+    timeout-minutes: 120
     runs-on: ubuntu-latest
     strategy:
       matrix:
         suite:
+          - elk
           - language-tools
+          - misskey
           # - naive-ui
           - nuxt
+          - npmx
           - pinia
           - primevue
           - quasar
@@ -50,41 +58,50 @@ jobs:
           - router
           - test-utils
           - vant
+          - vapor-interop-fuzz
           - vite-plugin-vue
           - vitepress
+          - vue-jsx-vapor
           - vue-i18n
           - vue-macros
           - vuetify
           - vueuse
+          - vuefes-2025-website
+          - vuejs-docs
           - vue-simple-compiler
       fail-fast: false
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version-file: ".node-version"
-        id: setup-node
+          node-version: "24"
+          cache: true
 
-      - run: npm install --global corepack
-      - run: corepack enable
-      - run: pnpm --version
-      - run: pnpm i --frozen-lockfile
+      - run: vp install --frozen-lockfile
       - run: >-
-          pnpm tsx ecosystem-ci.ts
-          --${{ inputs.refType || github.event.client_payload.refType || 'branch' }} ${{ inputs.ref || github.event.client_payload.ref || 'main' }}
+          node ecosystem-ci.ts
+          --${{ inputs.refType || github.event.client_payload.refType || 'branch' }} ${{ inputs.ref || github.event.client_payload.ref || 'minor' }}
           --repo ${{ inputs.repo || github.event.client_payload.repo || 'vuejs/core' }}
           ${{ matrix.suite }}
         id: ecosystem-ci-run
         env:
           COREPACK_ENABLE_STRICT: 0
       - if: always()
-        run: pnpm tsx discord-webhook.ts
+        run: node discord-webhook.ts
         env:
           WORKFLOW_NAME: ci
           REF_TYPE: ${{ inputs.refType || github.event.client_payload.refType || 'branch' }}
-          REF: ${{ inputs.ref || github.event.client_payload.ref || 'main' }}
+          REF: ${{ inputs.ref || github.event.client_payload.ref || 'minor' }}
           REPO: ${{ inputs.repo || github.event.client_payload.repo || 'vuejs/core' }}
           SUITE: ${{ matrix.suite }}
           STATUS: ${{ job.status }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: report failure to fork issue tracker
+        if: failure()
+        uses: ./.github/actions/report-failure
+        with:
+          suite: ${{ matrix.suite }}
+          ref-type: ${{ inputs.refType || github.event.client_payload.refType || 'branch' }}
+          ref: ${{ inputs.ref || github.event.client_payload.ref || 'minor' }}
+          vue-repo: ${{ inputs.repo || github.event.client_payload.repo || 'vuejs/core' }}

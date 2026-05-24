@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { runInRepo } from '../utils.ts'
-import { RunOptions } from '../types.ts'
+import type { RunOptions } from '../types.ts'
 
 export async function test(options: RunOptions) {
 	await runInRepo({
@@ -19,8 +19,7 @@ export async function test(options: RunOptions) {
 						)}`,
 					)
 				}
-				pkg.scripts.selftestscript =
-					"[ -d ../../core/packages/vue/dist ] || (echo 'vue build failed' && exit 1)"
+				pkg.scripts.selftestscript = `node -e "const fs = require('node:fs'); if (!fs.existsSync('../../core/packages/vue/dist')) { console.error('vue build failed'); process.exit(1) }"`
 				return JSON.stringify(pkg, null, 2)
 			},
 		},

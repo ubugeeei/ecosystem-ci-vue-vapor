@@ -1,11 +1,10 @@
-import { runInRepo } from '../utils.ts'
+import { runInFixture } from '../utils.ts'
 import type { RunOptions } from '../types.ts'
 
 export async function test(options: RunOptions) {
-	await runInRepo({
+	await runInFixture({
 		...options,
-		repo: 'radix-vue/radix-vue',
-		branch: 'v2',
+		fixture: 'vapor-interop-fuzz',
 		test: 'test',
 	})
 }

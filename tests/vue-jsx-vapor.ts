@@ -4,8 +4,10 @@ import type { RunOptions } from '../types.ts'
 export async function test(options: RunOptions) {
 	await runInRepo({
 		...options,
-		repo: 'radix-vue/radix-vue',
-		branch: 'v2',
+		repo: 'vuejs/vue-jsx-vapor',
+		branch: 'main',
+		verify: false,
+		build: ['build', 'typecheck'],
 		test: 'test',
 	})
 }

@@ -2,8 +2,9 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { execaCommand } from 'execa'
-import {
+import type {
 	EnvironmentData,
+	FixtureOptions,
 	Overrides,
 	ProcessEnv,
 	RepoOptions,
@@ -215,7 +216,9 @@ function toCommand(
 				}
 			} else {
 				throw new Error(
-					`invalid task, expected string or function but got ${typeof task}: ${task}`,
+					`invalid task, expected string or function but got ${typeof task}: ${JSON.stringify(
+						task,
+					)}`,
 				)
 			}
 		}
@@ -245,7 +248,6 @@ export async function runInRepo(options: RunOptions & RepoOptions) {
 		beforeBuild,
 		beforeTest,
 		patchFiles,
-		overrideVueVersion = '',
 	} = options
 	const dir = path.resolve(
 		options.workspace,
@@ -271,33 +273,7 @@ export async function runInRepo(options: RunOptions & RepoOptions) {
 		)
 	}
 
-	const overrides = options.overrides || {}
-	const vuePackages = await getVuePackages()
-
-	if (options.release) {
-		// pkg.pr.new support
-		for (const pkg of vuePackages) {
-			let version = options.release
-			if (options.release.startsWith('@')) {
-				version = `https://pkg.pr.new/${pkg.name}@${options.release.slice(1)}`
-			}
-			if (overrides[pkg.name] && overrides[pkg.name] !== version) {
-				throw new Error(
-					`conflicting overrides[${pkg.name}]=${
-						overrides[pkg.name]
-					} and --release=${
-						options.release
-					} config. Use either one or the other`,
-				)
-			} else {
-				overrides[`${pkg.name}${overrideVueVersion}`] = version
-			}
-		}
-	} else {
-		for (const pkg of vuePackages) {
-			overrides[pkg.name] ||= pkg.hashedVersion
-		}
-	}
+	const overrides = await resolveVuePackageOverrides(options)
 
 	if (patchFiles) {
 		for (const fileName in patchFiles) {
@@ -328,6 +304,77 @@ export async function runInRepo(options: RunOptions & RepoOptions) {
 		await buildCommand?.(pkg.scripts)
 		await beforeTestCommand?.(pkg.scripts)
 		await testCommand?.(pkg.scripts)
+	}
+
+	await applyPackageOverrides(dir, pkg, overrides, options.release)
+	await beforeBuildCommand?.(pkg.scripts)
+	await buildCommand?.(pkg.scripts)
+	if (test) {
+		await beforeTestCommand?.(pkg.scripts)
+		await testCommand?.(pkg.scripts)
+	}
+	return { dir }
+}
+
+export async function runInFixture(options: RunOptions & FixtureOptions) {
+	if (options.verify == null) {
+		options.verify = true
+	}
+	const {
+		build,
+		test,
+		beforeInstall,
+		beforeBuild,
+		beforeTest,
+		patchFiles,
+		fixture,
+	} = options
+	const sourceDir = path.resolve(options.root, 'fixtures', fixture)
+	if (!fs.existsSync(sourceDir)) {
+		throw new Error(`fixture not found: ${sourceDir}`)
+	}
+
+	const dir = path.resolve(options.workspace, options.dir || fixture)
+	fs.rmSync(dir, { recursive: true, force: true })
+	fs.cpSync(sourceDir, dir, { recursive: true })
+	cd(dir)
+	await $`git init --quiet`
+	await $`git add .`
+
+	if (options.agent == null) {
+		const detectedAgent = await detect({ cwd: dir, autoInstall: false })
+		if (detectedAgent == null) {
+			throw new Error(`Failed to detect package manager in ${dir}`)
+		}
+		options.agent = detectedAgent
+	}
+	if (!AGENTS.includes(options.agent)) {
+		throw new Error(
+			`Invalid agent ${options.agent}. Allowed values: ${AGENTS.join(', ')}`,
+		)
+	}
+
+	const agent = options.agent
+	const beforeInstallCommand = toCommand(beforeInstall, agent)
+	const beforeBuildCommand = toCommand(beforeBuild, agent)
+	const beforeTestCommand = toCommand(beforeTest, agent)
+	const buildCommand = toCommand(build, agent)
+	const testCommand = toCommand(test, agent)
+
+	const pkgFile = path.join(dir, 'package.json')
+	const pkg = JSON.parse(await fs.promises.readFile(pkgFile, 'utf-8'))
+
+	await beforeInstallCommand?.(pkg.scripts)
+
+	const overrides = await resolveVuePackageOverrides(options)
+	if (patchFiles) {
+		for (const fileName in patchFiles) {
+			const filePath = path.resolve(dir, fileName)
+			const patchFn = patchFiles[fileName]
+			const content = fs.readFileSync(filePath, 'utf-8')
+			fs.writeFileSync(filePath, patchFn(content, overrides))
+			console.log(`patched file: ${fileName}`)
+		}
 	}
 
 	await applyPackageOverrides(dir, pkg, overrides, options.release)
@@ -546,6 +593,41 @@ export async function bisectVue(
 	}
 }
 
+async function resolveVuePackageOverrides(
+	options: RunOptions & { overrides?: Overrides },
+) {
+	const overrides = { ...options.overrides }
+	const vuePackages = await getVuePackages()
+	const overrideVueVersion = options.overrideVueVersion || ''
+
+	if (options.release) {
+		// pkg.pr.new support
+		for (const pkg of vuePackages) {
+			let version = options.release
+			if (options.release.startsWith('@')) {
+				version = `https://pkg.pr.new/${pkg.name}@${options.release.slice(1)}`
+			}
+			if (overrides[pkg.name] && overrides[pkg.name] !== version) {
+				throw new Error(
+					`conflicting overrides[${pkg.name}]=${
+						overrides[pkg.name]
+					} and --release=${
+						options.release
+					} config. Use either one or the other`,
+				)
+			} else {
+				overrides[`${pkg.name}${overrideVueVersion}`] = version
+			}
+		}
+	} else {
+		for (const pkg of vuePackages) {
+			overrides[pkg.name] ||= pkg.hashedVersion
+		}
+	}
+
+	return overrides
+}
+
 function isLocalOverride(v: string): boolean {
 	if (!v.includes('/') || v.startsWith('@')) {
 		// not path-like (either a version number or a package name)
@@ -571,8 +653,7 @@ export async function applyPackageOverrides(
 	// remove boolean flags
 	overrides = Object.fromEntries(
 		Object.entries(overrides)
-			//eslint-disable-next-line @typescript-eslint/no-unused-vars
-			.filter(([key, value]) => typeof value === 'string')
+			.filter(([, value]) => typeof value === 'string')
 			.map(([key, value]) => [key, useFileProtocol(value as string)]),
 	)
 	await $`git clean -fdxq` // remove current install

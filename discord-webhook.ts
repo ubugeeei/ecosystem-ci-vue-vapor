@@ -143,8 +143,9 @@ async function fetchJobs() {
 		},
 	})
 	if (!res.ok) {
+		const body = await res.text()
 		console.warn(
-			`Failed to fetch jobs (${res.status} ${res.statusText}): ${res.text()}`,
+			`Failed to fetch jobs (${res.status} ${res.statusText}): ${body}`,
 		)
 		return null
 	}

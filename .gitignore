@@ -6,5 +6,6 @@ vue
 workspace
 .pnpm-debug.log
 .idea
+.cache
 .verdaccio-cache
 built-packages

@@ -30,22 +30,24 @@ export async function startRegistry() {
 			)
 		}, START_VERDACCIO_TIMEOUT_IN_SECONDS * 1000)
 
-		runServer(config).then((app) => {
-			app.listen(LOCAL_REGISTRY_PORT, () => {
-				console.log(`Verdaccio started on port ${LOCAL_REGISTRY_PORT}`)
-				resolve(app)
-			})
-
-			for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
-				// Use once() so that receiving double signals exit the app.
-				process.once(signal, () => {
-					console.log('Received shutdown signal - closing server...')
-					app.close(() => {
-						console.log('Server closed')
-						process.exit(0)
-					})
+		runServer(config)
+			.then((app) => {
+				app.listen(LOCAL_REGISTRY_PORT, () => {
+					console.log(`Verdaccio started on port ${LOCAL_REGISTRY_PORT}`)
+					resolve(app)
 				})
-			}
-		})
+
+				for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+					// Use once() so that receiving double signals exit the app.
+					process.once(signal, () => {
+						console.log('Received shutdown signal - closing server...')
+						app.close(() => {
+							console.log('Server closed')
+							process.exit(0)
+						})
+					})
+				}
+			})
+			.catch(reject)
 	})
 }
