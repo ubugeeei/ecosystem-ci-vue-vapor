@@ -79,6 +79,8 @@ jobs:
       - run: vp install --frozen-lockfile
 
       - if: ${{ !inputs.commit }}
+        id: ecosystem-ci-run-branch
+        continue-on-error: true
         run: >-
           node ecosystem-ci.ts
           --branch ${{ inputs.branchName }}
@@ -88,6 +90,8 @@ jobs:
           COREPACK_ENABLE_STRICT: 0
 
       - if: ${{ inputs.commit }}
+        id: ecosystem-ci-run-commit
+        continue-on-error: true
         run: >-
           node ecosystem-ci.ts
           --commit ${{ inputs.commit }}
@@ -97,7 +101,7 @@ jobs:
           COREPACK_ENABLE_STRICT: 0
 
       - name: report failure to fork issue tracker
-        if: failure()
+        if: steps.ecosystem-ci-run-branch.outcome == 'failure' || steps.ecosystem-ci-run-commit.outcome == 'failure'
         uses: ./.github/actions/report-failure
         with:
           suite: ${{ inputs.suite }}
@@ -149,6 +153,8 @@ jobs:
       - run: vp install --frozen-lockfile
 
       - if: ${{ !inputs.commit }}
+        id: ecosystem-ci-run-branch
+        continue-on-error: true
         run: >-
           node ecosystem-ci.ts
           --branch ${{ inputs.branchName }}
@@ -158,6 +164,8 @@ jobs:
           COREPACK_ENABLE_STRICT: 0
 
       - if: ${{ inputs.commit }}
+        id: ecosystem-ci-run-commit
+        continue-on-error: true
         run: >-
           node ecosystem-ci.ts
           --commit ${{ inputs.commit }}
@@ -167,7 +175,7 @@ jobs:
           COREPACK_ENABLE_STRICT: 0
 
       - name: report failure to fork issue tracker
-        if: failure()
+        if: steps.ecosystem-ci-run-branch.outcome == 'failure' || steps.ecosystem-ci-run-commit.outcome == 'failure'
         uses: ./.github/actions/report-failure
         with:
           suite: ${{ matrix.suite }}

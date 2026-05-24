@@ -84,10 +84,11 @@ jobs:
           --repo ${{ inputs.repo }}
           ${{ inputs.suite }}
         id: ecosystem-ci-run
+        continue-on-error: true
         env:
           COREPACK_ENABLE_STRICT: 0
       - name: report failure to fork issue tracker
-        if: failure()
+        if: steps.ecosystem-ci-run.outcome == 'failure'
         uses: ./.github/actions/report-failure
         with:
           suite: ${{ inputs.suite }}
