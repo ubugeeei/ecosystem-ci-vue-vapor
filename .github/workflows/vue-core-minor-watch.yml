@@ -1,0 +1,50 @@
+name: vue-core-minor-watch
+
+on:
+  schedule:
+    - cron: "17 * * * *" # poll vuejs/core minor hourly
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dispatch-on-new-minor-sha:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "24"
+          cache: false
+
+      - name: resolve vuejs/core minor head
+        id: minor
+        run: node .github/scripts/resolve-vue-core-minor.ts
+
+      - name: restore seen sha marker
+        id: seen
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/vue-core-minor
+          key: vue-core-minor-${{ steps.minor.outputs.sha }}
+
+      - name: prepare seen sha marker
+        if: steps.seen.outputs.cache-hit != 'true'
+        run: node .github/scripts/write-vue-core-minor-cache-marker.ts
+        env:
+          MINOR_SHA: ${{ steps.minor.outputs.sha }}
+
+      - name: save seen sha marker
+        if: steps.seen.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/vue-core-minor
+          key: vue-core-minor-${{ steps.minor.outputs.sha }}
+
+      - name: dispatch ecosystem-ci
+        if: steps.seen.outputs.cache-hit != 'true'
+        run: node .github/scripts/dispatch-ecosystem-ci.ts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MINOR_SHA: ${{ steps.minor.outputs.sha }}

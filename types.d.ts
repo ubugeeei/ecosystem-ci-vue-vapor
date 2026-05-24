@@ -51,6 +51,12 @@ export interface RepoOptions {
 	overrides?: Overrides
 }
 
+export interface FixtureOptions {
+	fixture: string
+	dir?: string
+	overrides?: Overrides
+}
+
 export interface Overrides {
 	[key: string]: string | boolean
 }

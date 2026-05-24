@@ -5,6 +5,11 @@ env:
   # 7 GiB by default on GitHub, setting to 6 GiB
   # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
   NODE_OPTIONS: --max-old-space-size=6144
+  VITE_GIT_HOOKS: "0"
+
+permissions:
+  contents: read
+  issues: write
 
 on:
   workflow_dispatch:
@@ -23,7 +28,7 @@ on:
         description: "vue ref to use"
         required: true
         type: string
-        default: "main"
+        default: "minor"
       repo:
         description: "vue repository to use"
         required: true
@@ -34,9 +39,13 @@ on:
         required: true
         type: choice
         options:
+          - elk
           - language-tools
+          - misskey
           # - naive-ui
+          - naive-ui-jsx-vapor
           - nuxt
+          - npmx
           - pinia
           - primevue
           - quasar
@@ -44,33 +53,44 @@ on:
           - router
           - test-utils
           - vant
+          - vapor-interop-fuzz
+          - vapor-vrt
           - vite-plugin-vue
           - vitepress
+          - vue-jsx-vapor
           - vue-i18n
           - vue-macros
           - vuetify
+          - vuetify-jsx-vapor
           - vueuse
+          - vuefes-2025-website
+          - vuejs-docs
           - vue-simple-compiler
 jobs:
   execute-selected-suite:
-    timeout-minutes: 60
+    timeout-minutes: 120
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version-file: ".node-version"
-        id: setup-node
+          node-version: "24"
+          cache: true
 
-      - run: npm install --global corepack
-      - run: corepack enable
-      - run: pnpm --version
-      - run: pnpm i --frozen-lockfile
+      - run: vp install --frozen-lockfile
       - run: >-
-          pnpm tsx ecosystem-ci.ts
+          node ecosystem-ci.ts
           --${{ inputs.refType }} ${{ inputs.ref }}
           --repo ${{ inputs.repo }}
           ${{ inputs.suite }}
         id: ecosystem-ci-run
         env:
           COREPACK_ENABLE_STRICT: 0
+      - name: report failure to fork issue tracker
+        if: failure()
+        uses: ./.github/actions/report-failure
+        with:
+          suite: ${{ inputs.suite }}
+          ref-type: ${{ inputs.refType }}
+          ref: ${{ inputs.ref }}
+          vue-repo: ${{ inputs.repo }}

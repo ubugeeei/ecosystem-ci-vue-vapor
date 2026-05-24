@@ -1,0 +1,28 @@
+name: Report ecosystem-ci failure
+description: Create or update an issue in this fork when a Vapor ecosystem suite fails.
+
+inputs:
+  suite:
+    required: true
+    description: Suite name.
+  ref-type:
+    required: true
+    description: Vue ref type.
+  ref:
+    required: true
+    description: Vue ref.
+  vue-repo:
+    required: true
+    description: Vue repository.
+
+runs:
+  using: composite
+  steps:
+    - run: node .github/scripts/report-failure.ts
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        SUITE: ${{ inputs.suite }}
+        REF_TYPE: ${{ inputs.ref-type }}
+        REF: ${{ inputs.ref }}
+        VUE_REPO: ${{ inputs.vue-repo }}

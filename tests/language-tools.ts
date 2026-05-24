@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import { runInRepo } from '../utils.ts'
-import { RunOptions } from '../types.ts'
+import type { RunOptions } from '../types.ts'
 import { REGISTRY_ADDRESS } from '../registry.ts'
 import YAML from 'yaml'
 

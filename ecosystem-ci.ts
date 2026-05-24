@@ -13,7 +13,7 @@ import {
 	parseVueVersion,
 	getPermanentRef,
 } from './utils.ts'
-import { CommandOptions, RunOptions } from './types.ts'
+import type { CommandOptions, RunOptions } from './types.ts'
 
 const cli = cac()
 cli

@@ -1,23 +1,28 @@
-# integration tests for vue ecosystem - run from pr comments
+# integration tests for vue ecosystem - manually run against a vuejs/core PR ref
 name: ecosystem-ci-from-pr
 
 env:
   # 7 GiB by default on GitHub, setting to 6 GiB
   # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
   NODE_OPTIONS: --max-old-space-size=6144
+  VITE_GIT_HOOKS: "0"
+
+permissions:
+  contents: read
+  issues: write
 
 on:
   workflow_dispatch:
     inputs:
       prNumber:
-        description: "PR number (e.g. 9887)"
+        description: "PR number for operator context only (e.g. 9887)"
         required: true
         type: string
       branchName:
         description: "vue branch to use"
         required: true
         type: string
-        default: "main"
+        default: "minor"
       repo:
         description: "vue repository to use"
         required: true
@@ -27,14 +32,18 @@ on:
         description: "commit to use"
         type: string
       suite:
-        description: "testsuite to run. runs all testsuits when `-`."
+        description: "testsuite to run. runs all testsuites when `-`."
         required: false
         type: choice
         options:
           - "-"
+          - elk
           - language-tools
+          - misskey
           # - naive-ui
+          - naive-ui-jsx-vapor
           - nuxt
+          - npmx
           - pinia
           - primevue
           - quasar
@@ -42,55 +51,36 @@ on:
           - router
           - test-utils
           - vant
+          - vapor-interop-fuzz
+          - vapor-vrt
           - vite-plugin-vue
           - vitepress
+          - vue-jsx-vapor
           - vue-i18n
           - vue-macros
           - vuetify
+          - vuetify-jsx-vapor
           - vueuse
+          - vuefes-2025-website
+          - vuejs-docs
           - vue-simple-compiler
+
 jobs:
-  init:
-    name: "Running for PR #${{ github.event.inputs.prNumber }}"
-    runs-on: ubuntu-latest
-    outputs:
-      comment-id: ${{ steps.create-comment.outputs.result }}
-    steps:
-      - id: create-comment
-        uses: actions/github-script@v8
-        with:
-          github-token: ${{ secrets.ECOSYSTEM_CI_ACCESS_TOKEN }}
-          result-encoding: string
-          script: |
-            const url = `${context.serverUrl}//${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
-            const urlLink = `[Open](${url})`
-
-            const { data: comment } = await github.rest.issues.createComment({
-              issue_number: context.payload.inputs.prNumber,
-              owner: context.repo.owner,
-              repo: 'core',
-              body: `⏳ Triggered ecosystem CI: ${urlLink}`
-            })
-            return comment.id
-
   execute-selected-suite:
-    timeout-minutes: 60
+    timeout-minutes: 120
     runs-on: ubuntu-latest
-    needs: init
     if: "inputs.suite != '-'"
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version-file: ".node-version"
-      - run: npm install --global corepack
-      - run: corepack enable
-      - run: pnpm --version
-      - run: pnpm i --frozen-lockfile
+          node-version: "24"
+          cache: true
+      - run: vp install --frozen-lockfile
 
       - if: ${{ !inputs.commit }}
         run: >-
-          pnpm tsx ecosystem-ci.ts
+          node ecosystem-ci.ts
           --branch ${{ inputs.branchName }}
           --repo ${{ inputs.repo }}
           ${{ inputs.suite }}
@@ -98,21 +88,37 @@ jobs:
           COREPACK_ENABLE_STRICT: 0
 
       - if: ${{ inputs.commit }}
-        run: pnpm tsx ecosystem-ci.ts --commit ${{ inputs.commit }} ${{ inputs.suite }}
+        run: >-
+          node ecosystem-ci.ts
+          --commit ${{ inputs.commit }}
+          --repo ${{ inputs.repo }}
+          ${{ inputs.suite }}
         env:
           COREPACK_ENABLE_STRICT: 0
 
+      - name: report failure to fork issue tracker
+        if: failure()
+        uses: ./.github/actions/report-failure
+        with:
+          suite: ${{ inputs.suite }}
+          ref-type: ${{ inputs.commit && 'commit' || 'branch' }}
+          ref: ${{ inputs.commit || inputs.branchName }}
+          vue-repo: ${{ inputs.repo }}
+
   execute-all:
-    timeout-minutes: 60
+    timeout-minutes: 120
     runs-on: ubuntu-latest
-    needs: init
     if: "inputs.suite == '-'"
     strategy:
       matrix:
         suite:
+          - elk
           - language-tools
+          - misskey
           # - naive-ui
+          - naive-ui-jsx-vapor
           - nuxt
+          - npmx
           - pinia
           - primevue
           - quasar
@@ -120,27 +126,31 @@ jobs:
           - router
           - test-utils
           - vant
+          - vapor-interop-fuzz
+          - vapor-vrt
           - vite-plugin-vue
           - vitepress
+          - vue-jsx-vapor
           - vue-i18n
           - vue-macros
           - vuetify
+          - vuetify-jsx-vapor
           - vueuse
+          - vuefes-2025-website
+          - vuejs-docs
           - vue-simple-compiler
       fail-fast: false
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: voidzero-dev/setup-vp@v1
         with:
-          node-version-file: ".node-version"
-      - run: npm install --global corepack
-      - run: corepack enable
-      - run: pnpm --version
-      - run: pnpm i --frozen-lockfile
+          node-version: "24"
+          cache: true
+      - run: vp install --frozen-lockfile
 
       - if: ${{ !inputs.commit }}
         run: >-
-          pnpm tsx ecosystem-ci.ts
+          node ecosystem-ci.ts
           --branch ${{ inputs.branchName }}
           --repo ${{ inputs.repo }}
           ${{ matrix.suite }}
@@ -148,136 +158,19 @@ jobs:
           COREPACK_ENABLE_STRICT: 0
 
       - if: ${{ inputs.commit }}
-        run: pnpm tsx ecosystem-ci.ts --commit ${{ inputs.commit }} ${{ matrix.suite }}
+        run: >-
+          node ecosystem-ci.ts
+          --commit ${{ inputs.commit }}
+          --repo ${{ inputs.repo }}
+          ${{ matrix.suite }}
         env:
           COREPACK_ENABLE_STRICT: 0
 
-  update-comment:
-    runs-on: ubuntu-latest
-    needs: [init, execute-selected-suite, execute-all]
-    if: always()
-    steps:
-      - uses: actions/github-script@v8
+      - name: report failure to fork issue tracker
+        if: failure()
+        uses: ./.github/actions/report-failure
         with:
-          github-token: ${{ secrets.ECOSYSTEM_CI_ACCESS_TOKEN }}
-          script: |
-            const { data: { jobs } } = await github.rest.actions.listJobsForWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-              per_page: 100
-            });
-
-            const selectedSuite = context.payload.inputs.suite
-            let results
-            if (selectedSuite !== "-") {
-              const { conclusion, html_url } = jobs.find(job => job.name === "execute-selected-suite")
-              results = [{ suite: selectedSuite, conclusion, link: html_url }]
-            } else {
-              results = jobs
-                .filter(job => job.name.startsWith('execute-all '))
-                .map(job => {
-                  const suite = job.name.replace(/^execute-all \(([^)]+)\)$/, "$1")
-                  return { suite, conclusion: job.conclusion, link: job.html_url }
-                })
-            }
-
-            const url = `${context.serverUrl}//${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
-            const urlLink = `[Open](${url})`
-
-            const conclusionEmoji = {
-              success: ":white_check_mark:",
-              failure: ":x:",
-              cancelled: ":stop_button:"
-            }
-
-            // check for previous ecosystem-ci runs against the main branch
-
-            // first, list workflow runs for ecosystem-ci.yml
-            const { data: { workflow_runs } } = await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'ecosystem-ci.yml'
-            });
-
-            // for simplity, we only take the latest completed scheduled run
-            // otherwise we would have to check the inputs for every maunally triggerred runs, which is an overkill
-            const latestScheduledRun = workflow_runs.find(run => run.event === "schedule" && run.status === "completed")
-
-            // get the jobs for the latest scheduled run
-            const { data: { jobs: scheduledJobs } } = await github.rest.actions.listJobsForWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: latestScheduledRun.id
-            });
-            const scheduledResults = scheduledJobs
-              .filter(job => job.name.startsWith('test-ecosystem '))
-              .map(job => {
-                const suite = job.name.replace(/^test-ecosystem \(([^)]+)\)$/, "$1")
-                return { suite, conclusion: job.conclusion, link: job.html_url }
-              })
-
-            const body = `
-            📝 Ran ecosystem CI: ${urlLink}
-
-            | suite | result | [latest scheduled](${latestScheduledRun.html_url}) |
-            |-------|--------|----------------|
-            ${results.map(current => {
-              const latest = scheduledResults.find(s => s.suite === current.suite) || {} // in case a new suite is added after latest scheduled
-
-              const firstColumn = current.suite
-              const secondColumn = `${conclusionEmoji[current.conclusion]} [${current.conclusion}](${current.link})`
-              const thirdColumn = `${conclusionEmoji[latest.conclusion]} [${latest.conclusion}](${latest.link})`
-
-              return `| ${firstColumn} | ${secondColumn} | ${thirdColumn} |`
-            }).join("\n")}
-            `
-
-            if (selectedSuite === "-") {
-              // delete the previous ran results
-              try {
-                const { data: comments } = await github.rest.issues.listComments({
-                  issue_number: context.payload.inputs.prNumber,
-                  owner: context.repo.owner,
-                  repo: 'core'
-                })
-
-                const triggerComments = comments.filter(comment =>
-                  comment.body.includes('/ecosystem-ci run')
-                )
-                // note: issue comments are ordered by ascending ID.
-                // delete the previous ecosystem-ci trigger comments
-                // just keep the latest one
-                triggerComments.pop()
-                
-                const workflowComments = comments.filter(comment =>
-                  comment.body.includes('Ran ecosystem CI:') || comment.body.includes('Triggered ecosystem CI:')
-                )
-                for (const comment of [...workflowComments, ...triggerComments]) {
-                  await github.rest.issues.deleteComment({
-                    owner: context.repo.owner,
-                    repo: 'core',
-                    comment_id: comment.id
-                  });
-                  console.log(`Deleted previous comment: ${comment.id}`);
-                }
-              } catch (error) {
-                console.log('Error when trying to delete previous comments:', error);
-              }
-            }
-
-            try {
-              await github.rest.issues.deleteComment({
-                owner: context.repo.owner,
-                repo: 'core',
-                comment_id: ${{ needs.init.outputs.comment-id }}
-              })
-            } catch (error) {
-            }
-
-            await github.rest.issues.createComment({
-              issue_number: context.payload.inputs.prNumber,
-              owner: context.repo.owner,
-              repo: 'core',
-              body
-            })
+          suite: ${{ matrix.suite }}
+          ref-type: ${{ inputs.commit && 'commit' || 'branch' }}
+          ref: ${{ inputs.commit || inputs.branchName }}
+          vue-repo: ${{ inputs.repo }}

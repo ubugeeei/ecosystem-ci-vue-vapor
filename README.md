@@ -1,79 +1,156 @@
-# Vue Ecosystem CI
+# Vue Vapor Ecosystem CI
 
-This repository is used to run integration tests for vue ecosystem projects
+This repository is a Vapor-focused fork of `vuejs/ecosystem-ci`.
 
-## How it works
+Its job is to track the Vapor implementation on the `vuejs/core` `minor`
+branch, run it against real downstream projects, and collect failures in this
+fork before anything is raised upstream. The Vue.js Core Team can then triage
+the results here and decide which findings should be manually reported to the
+implementation repository.
 
-We now have continuous release like [this](https://github.com/vuejs/core/runs/28854321865) via [pkg.pr.new](https://github.com/stackblitz-labs/pkg.pr.new). By default when running against a branch or a commit, we will use the corresponding release from `pkg.pr.new` so we don't need to build / mock publish the packages again.
+## Motivation
 
-We will use pnpm override to force install the specific version of Vue in the downstream projects and then run their tests.
+Vapor Mode needs confidence from the outside of Vue core, not only unit tests
+inside `vuejs/core`. Production readiness depends on SSR, SSG, large
+applications, JSX/TSX, and VDOM/Vapor interop all continuing to work under real
+build tools and dependency graphs.
 
-In cases where we cannot use pre-built packages, the script will perform a fresh build by pulling the specific Vue branch / commit and publish them to a local verdaccio registry.
+This fork therefore treats downstream projects as black-box probes. It installs
+the selected Vue build through package-manager overrides, forces representative
+SFCs into Vapor compilation where possible, wires `vaporInteropPlugin` into the
+host app, and runs the downstream build and test commands.
 
-## via github workflow
+## Policy
 
-### scheduled
+- Test `vuejs/core` `minor` by default.
+- Never mutate or comment on `vuejs/core` from automation.
+- File failures only in `ubugeeei/ecosystem-ci-vue-vapor`.
+- Keep downstream patches local to the CI workspace.
+- Treat downstream repositories as external testbeds only. Do not vendor their
+  source, do not commit patched copies, and do not redistribute generated
+  artifacts.
+- Prefer observable behavior: build output, SSR/SSG success, hydration, DOM
+  updates, interop warnings, and downstream test results.
+- Run on Node.js 24+ and execute TypeScript directly with Node's stable strip
+  types support. Do not use `tsx` for this repository's runner scripts.
 
-Workflows are scheduled to run automatically every Monday, Wednesday and Friday
+## Tooling
 
-### manually
+This fork assumes Vite+ for local and CI tooling. Lint, format, type-aware
+checks, and staged-file checks live in `vite.config.ts` instead of separate
+ESLint, Prettier, or lint-staged configuration files.
 
-- open [workflow](../../actions/workflows/ecosystem-ci-selected.yml)
-- click 'Run workflow' button on top right of the list
-- select suite to run in dropdown
-- start workflow
+Use `vp install` to install dependencies, `vp check` for the unified static
+check, and `vp run check:testbeds` to validate the downstream license manifest.
 
-## via shell script
+## Testbed Licenses
 
-- clone this repo
-- run `pnpm i`
-- run `pnpm test` to run all suites
-- or `pnpm test <suitename>` to select a suite
-- or `tsx ecosystem-ci.ts`
+All downstream projects cloned by suites are listed in
+`tests/_testbed-manifest.ts`. The manifest records the suite, repository,
+license class, license source, usage, and artifact redistribution policy. CI
+uses downstream checkouts only as ephemeral test inputs.
 
-Note if you are not using `pnpm` through `corepack` locally, you need to prepend every command with `COREPACK_ENABLE_STRICT=0 `.
+Most tracked projects are MIT licensed. The explicit non-MIT or non-detected
+cases are:
 
-You can pass `--tag v3.2.0-beta.1`, `--branch somebranch` or `--commit abcd1234` option to select a specific vue version to build.
-If you pass `--release 3.2.45`, vue build will be skipped and vue is fetched from the registry instead.
+| Suite                 | Repository                     | License status                                                             | Policy                                                                |
+| --------------------- | ------------------------------ | -------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `misskey`             | `misskey-dev/misskey`          | AGPL-3.0                                                                   | External testbed only; no vendoring or artifact redistribution.       |
+| `vuejs-docs`          | `vuejs/docs`                   | CC BY 4.0 for repository contents except images; images retain owner terms | External content testbed only; no built site or image redistribution. |
+| `vuefes-2025-website` | `vuejs-jp/vuefes-2025-website` | No license detected by GitHub API                                          | External testbed only; no vendoring or artifact redistribution.       |
 
-The repositories are checked out into `workspace` subdirectory as shallow clones.
+## Suites
 
-If you want to test **the same version (or tag)** of vue multiple times, please **run `pnpm clean` first** to ensure the workspace is clean and the package registry cache is purged.
+Existing ecosystem suites are retained, and Vapor-specific coverage is added:
 
-### Running against local build
+- SSR / Nuxt: `npmx`, `nuxt`, `elk`
+- SSG: `vuefes-2025-website`, `vuejs-docs`, `vitepress`
+- Large apps: `misskey`, `elk`
+- JSX / TSX: `vue-jsx-vapor`, `vuetify-jsx-vapor`,
+  `naive-ui-jsx-vapor`
+- VDOM / Vapor interop fuzzing: `vapor-interop-fuzz`
+- Visual regression: `vapor-vrt`
 
-To run against the local build, link the `packages` directory of a local `vuejs/core` clone to `built-packages` inside this repo, then run with the `--local` option.
+The `vapor-interop-fuzz` suite is a local fixture. It compiles Vapor SFCs,
+mounts them from both VDOM and Vapor roots, randomly switches VDOM/Vapor
+components across seeded runs, exercises slots, fragments, keyed lists, events,
+Teleport, unmounting, and SSR hydration, then fails on observable mismatches or
+interop/hydration warnings.
 
-### Explicitly running against pkg.pr.new releases
+The `vapor-vrt` suite is also a local fixture. It resolves the latest stable
+Vue release from npm at runtime, renders the non-Vapor baseline, then renders
+the same page/state manifest with the tested Vapor build. It covers every page
+and state declared in the fixture manifest across desktop and mobile viewports,
+and compares screenshots with pixel-level diffs.
 
-You can run against a specific continuous release via `--release @<commit or branch>`. For example:
+## Workflows
 
+- `ecosystem-ci.yml` runs all suites every day and can be manually dispatched.
+- `ecosystem-ci-selected.yml` runs one selected suite manually.
+- `ecosystem-ci-from-pr.yml` manually runs a branch or commit associated with a
+  Vue PR, but reports only inside this fork.
+- `vue-core-minor-watch.yml` polls `vuejs/core` `minor` hourly. When it sees a
+  new branch head SHA, it dispatches `ecosystem-ci.yml` against that commit.
+
+Failures create or update issues in this repository with labels:
+`ecosystem-ci`, `vapor`, and `suite:<name>`.
+
+## Running Locally
+
+Install dependencies:
+
+```sh
+vp install
 ```
-tsx ecosystem-ci.ts --release @main
-tsx ecosystem-ci.ts --release @ca41b9202
+
+Run project checks:
+
+```sh
+vp check
+vp run check:testbeds
 ```
 
-## how to add a new integration test
+Run all suites against `vuejs/core` `minor`:
 
-- check out the existing [tests](./tests) and add one yourself. Thanks to some utilities it is really easy
-- once you are confident the suite works, add it to the lists of suites in the [workflows](../../actions/)
+```sh
+vp run test --branch minor
+```
 
-> the current utilities focus on pnpm based projects. Consider switching to pnpm or contribute utilities for other pms
+Run one suite:
 
-If your project needs some special setup when running in the Ecosystem CI, you can detect the environment by checking for the `ECOSYSTEM_CI` environment variable. It would be set to `vue` if running in the Vue Ecosystem CI.
+```sh
+vp run test --branch minor vapor-interop-fuzz
+vp run test --branch minor vapor-vrt
+vp run test --branch minor npmx
+```
 
-## reporting results
+Run against a pkg.pr.new continuous release:
 
-### on your own server
+```sh
+vp run test --release @<commit> vapor-interop-fuzz
+```
 
-- Go to `Server settings > Integrations > Webhooks` and click `New Webhook`
-- Give it a name, icon and a channel to post to
-- copy the webhook url
-- get in touch with admins of this repo so they can add the webhook
+Run against a local Vue build by linking a local `vuejs/core/packages` directory
+to `built-packages` in this repository, then:
 
-### how to add a discord webhook here
+```sh
+vp run test --local vapor-interop-fuzz
+```
 
-- Go to `<github repo>/settings/secrets/actions` and click on `New repository secret`
-- set `Name` as `DISCORD_WEBHOOK_URL`
-- paste the discord webhook url you copied from above into `Value`
-- Click `Add secret`
+If the same Vue version or tag is tested repeatedly, run `vp run clean` first to
+purge the workspace and local registry cache.
+
+## Adding Coverage
+
+Add a file in `tests/<suite>.ts` and call `runInRepo` for downstream projects or
+`runInFixture` for local black-box fixtures. For Vapor downstream probes, prefer
+the helpers in `tests/vapor-mode-utils.ts`:
+
+- `enableVaporModeForVueFiles`
+- `installNuxtVaporInterop`
+- `patchViteConfigVueAlias`
+- `patchVitePressConfigForVapor`
+- `patchVitePressThemeForVapor`
+- `patchMisskeyForVapor`
+
+Once a suite is stable, add it to the workflow matrices and dispatch choices.
